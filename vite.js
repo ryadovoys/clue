@@ -1,7 +1,7 @@
 /*
- * Vite plugin. Adds the annotation tool to the dev server, never to a build.
+ * Vite plugin. Adds Clue to the dev server, never to a build.
  * For Vue it also stamps template lines, so a pick can say `AgentCard.vue:42`:
- * plain elements get `data-annotation-line`, components get the line on their
+ * plain elements get `data-clue-line`, components get the line on their
  * instance through a vnode hook, so nothing reaches their props or the DOM.
  * The stamps stay on the line they describe, so source lines do not move.
  */
@@ -15,12 +15,13 @@ const ELEMENT_NODE = 1;
 const PLAIN_ELEMENT = 0;
 const COMPONENT = 1;
 
-export default function annotationTool({ color } = {}) {
-  const source = readFileSync(new URL("./annotation-tool.js", import.meta.url), "utf8");
+export default function clue({ color } = {}) {
+  // Read on every page load, so an edit to the tool shows up on reload.
+  const source = () => readFileSync(new URL("./clue.js", import.meta.url), "utf8");
   let parseSfc;
 
   return {
-    name: "annotation-tool",
+    name: "clue",
     apply: "serve",
     enforce: "pre",
     transformIndexHtml() {
@@ -28,7 +29,7 @@ export default function annotationTool({ color } = {}) {
         {
           tag: "script",
           attrs: color ? { "data-color": color } : {},
-          children: source,
+          children: source(),
           injectTo: "body",
         },
       ];
@@ -46,7 +47,7 @@ export default function annotationTool({ color } = {}) {
         if (node.type === ELEMENT_NODE) {
           const offset = at.offset + 1 + node.tag.length;
           if (node.tagType === PLAIN_ELEMENT && !SKIP_TAGS.has(node.tag)) {
-            stamps.push([offset, ` data-annotation-line="${at.line}"`]);
+            stamps.push([offset, ` data-clue-line="${at.line}"`]);
           } else if (
             node.tagType === COMPONENT &&
             !SKIP_COMPONENTS.has(node.tag) &&
@@ -55,7 +56,7 @@ export default function annotationTool({ color } = {}) {
           ) {
             stamps.push([
               offset,
-              ` @vue:before-mount="$event.component && ($event.component.annotationLine = ${at.line})"`,
+              ` @vue:before-mount="$event.component && ($event.component.clueLine = ${at.line})"`,
             ]);
           }
         }

@@ -1,16 +1,16 @@
 {
-  "name": "annotation-tool",
-  "version": "1.0.0",
-  "description": "Point at anything in a web page and copy a short numbered reference for your coding agent.",
+  "name": "clue",
+  "version": "2.0.0",
+  "description": "Clues for AI agents: point at anything on a web page and copy a short numbered reference for your coding agent.",
   "license": "MIT",
   "type": "module",
-  "repository": "github:ryadovoys/annotation-tool",
+  "repository": "github:ryadovoys/clue",
   "exports": {
-    ".": "./annotation-tool.js",
+    ".": "./clue.js",
     "./vite": "./vite.js"
   },
   "files": [
-    "annotation-tool.js",
+    "clue.js",
     "vite.js"
   ],
   "peerDependencies": {

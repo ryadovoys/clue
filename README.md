@@ -1,9 +1,13 @@
-<h1 align="center">Annotation tool</h1>
+<p align="center"><img src="assets/clue-logo.svg" width="72" alt="The Clue mark: a black arrow pointing left on a yellow sticky"></p>
 
-<p align="center"><b>Point at anything on a page and tell your agent exactly what you mean.</b></p>
+<h1 align="center">Clue</h1>
+
+<p align="center"><b>Your agent has no clue what you're pointing at. Give it one.</b></p>
+
+<p align="center">Clues for AI agents: point at anything on a web page and paste a short numbered reference into your prompt.</p>
 
 <p align="center">
-  <img src="assets/annotation-tool.gif" width="720" alt="Picking two cards on a pricing page with a lemon yellow highlight, pasting both numbered references into one sentence for an agent, and the agent updating the page">
+  <img src="assets/clue-demo.gif" width="720" alt="Picking two plan cards on a pricing page with Clue, pasting both numbered references into one sentence for an agent, and the agent restyling the first card">
 </p>
 
 I work on interfaces with coding agents every day. The slow part is explaining which thing I mean. "The button in the second card, no, the other one." So I built this layer for a project at work, and then kept missing it everywhere else.
@@ -16,14 +20,14 @@ Press Option+Shift+C, point at a block, click. You get one short line in your cl
 
 Paste it into your message and keep talking. Talk, paste, talk, paste. The picks are numbered, so you can write "make [1] look like [2]" and the agent knows both. For me this works better than selecting an object in a tool, because the reference sits right inside the sentence.
 
-Each pick has enough to find the thing and nothing to read past: the page, the name, the file and line, the text on it, the font.
+Each pick is a clue for the agent: enough to find the thing and nothing to read past. The page, the name, the file and line, the text on it, the font.
 
 ## Add it to a project
 
 Give your agent this link and say "add this to my project":
 
 ```
-https://github.com/ryadovoys/annotation-tool
+https://github.com/ryadovoys/clue
 ```
 
 It follows [INSTALL.md](INSTALL.md), asks which highlight colour you want and puts the layer on top. It only runs in development and never reaches your users.
@@ -31,20 +35,20 @@ It follows [INSTALL.md](INSTALL.md), asks which highlight colour you want and pu
 Or do it yourself. On a plain HTML page, add one line before `</body>`:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/ryadovoys/annotation-tool@1/annotation-tool.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/ryadovoys/clue@2/clue.js"></script>
 ```
 
 In a Vite project:
 
 ```bash
-npm i -D github:ryadovoys/annotation-tool
+npm i -D github:ryadovoys/clue
 ```
 
 ```js
 // vite.config.js, before the framework plugin
-import annotationTool from "annotation-tool/vite";
+import clue from "clue/vite";
 
-plugins: [annotationTool(), vue()]
+plugins: [clue(), vue()]
 ```
 
 ## How to use it
@@ -62,14 +66,14 @@ W and S work by key position, so they also work on a Russian keyboard. The numbe
 
 ## Colours
 
-Yellow like a highlighter by default, because it stands out on almost any page. There are also `pink`, `mint` and `sky`, or use any hex:
+Clue yellow by default, the colour of a sticky note, because it stands out on almost any page. There are also `pink`, `mint` and `sky`, or use any hex:
 
 ```html
 <script data-color="mint" src="..."></script>
 ```
 
 ```js
-annotationTool({ color: "#ff6b00" })
+clue({ color: "#ff6b00" })
 ```
 
 ## What it can see

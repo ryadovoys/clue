@@ -1,17 +1,18 @@
 /*
- * Annotation tool. Option+Shift+C, point at anything, W S to move up and down
- * the layers, click to copy a short numbered reference to it. Paste it into a
+ * Clue. Option+Shift+C, point at anything, W S to move up and down the
+ * layers, click to copy a short numbered reference to it. Paste it into a
  * chat with an agent, as many times as you need in one message.
  *
  * One file, no dependencies. Reads Vue and React dev internals when they are
  * there and falls back to the plain DOM when they are not.
  */
 (() => {
-  if (window.__annotationTool) return;
-  window.__annotationTool = true;
+  if (window.__clue) return;
+  window.__clue = true;
 
+  // Lemon is the Clue sticky yellow.
   const PALETTE = {
-    lemon: "#fff200",
+    lemon: "#fbff00",
     pink: "#ff3da5",
     mint: "#2dffa8",
     sky: "#38bdf8",
@@ -36,39 +37,57 @@
     "textarea", "ul", "video",
   ]);
 
+  // The Clue mark: a stylised left arrow on a square sticky.
+  const LOGO = `<svg class="logo" viewBox="0 0 128 128" aria-hidden="true">
+    <rect width="128" height="128" fill="var(--logo-paper)"/>
+    <path d="M80 22 87 37 42 66 35 52ZM43 67 87 93 79 106 36 79Z" fill="var(--logo-ink)"/>
+  </svg>`;
+
+  // Colours and type from the Clue Figma plugin. Square corners, like a sticky note.
   const STYLES = `
     :host {
-      --color-black: #0a0a0a;
+      --color-yellow-400: #fbff00;
+      --color-ink-950: #0f1011;
+      --color-ink-900: #191a1b;
+      --color-gray-400: #8a8f98;
+      --color-paper-100: #f0efee;
       --color-white: #ffffff;
-      --color-gray-400: #a3a3a3;
-      --color-gray-500: #737373;
+      --color-shade: rgba(15, 16, 17, .5);
 
       --accent: ${accent};
       --accent-ink: ${inkOn(accent)};
-      --surface: var(--color-black);
-      --surface-ink: var(--color-white);
+      --surface: var(--color-white);
+      --surface-ink: var(--color-ink-950);
       --surface-muted: var(--color-gray-400);
-      --cap: rgba(255, 255, 255, .14);
-      --edge: rgba(10, 10, 10, .55);
+      --surface-line: var(--color-paper-100);
+      --key: var(--color-paper-100);
+      --tint: color-mix(in srgb, var(--accent) 35%, transparent);
+      --logo-paper: var(--color-yellow-400);
+      --logo-ink: var(--color-ink-950);
 
-      --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      --text-sm: 12px;
-      --text-xs: 11px;
+      --font: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --font-features: "cv01", "ss03";
+      --weight-regular: 400;
+      --weight-medium: 510;
+      --text-md: 12px;
+      --text-sm: 10px;
+      --leading: 1.28;
+      --tracking-caps: .02em;
       --space-1: 4px;
       --space-2: 8px;
       --space-3: 12px;
       --space-4: 16px;
-      --radius-tick: 4px;
-      --radius-bar: 10px;
+      --logo-size: 16px;
+      --line: 1px;
       --ease: cubic-bezier(.23, 1, .32, 1);
-      --shadow: 0 0 0 1px rgba(128, 128, 128, .28), 0 16px 32px -16px rgba(0, 0, 0, .5);
+      --shadow: 0 16px 32px -16px var(--color-shade);
     }
     @media (prefers-color-scheme: dark) {
       :host {
-        --surface: var(--color-white);
-        --surface-ink: var(--color-black);
-        --surface-muted: var(--color-gray-500);
-        --cap: rgba(10, 10, 10, .08);
+        --surface: var(--color-ink-950);
+        --surface-ink: var(--color-white);
+        --surface-line: var(--color-ink-900);
+        --key: var(--color-ink-900);
       }
     }
     * { box-sizing: border-box; }
@@ -82,31 +101,31 @@
       position: fixed;
       z-index: 2;
       pointer-events: none;
-      border-radius: var(--radius-tick);
-      background: color-mix(in srgb, var(--accent) 30%, transparent);
-      outline: 2px solid var(--accent);
-      box-shadow: 0 0 0 3px var(--edge);
+      /* A plain square of tint, no border, like a sticky laid over the block. */
+      background: var(--tint);
       transition: left .12s var(--ease), top .12s var(--ease), width .12s var(--ease), height .12s var(--ease);
     }
+    /* The name sits on a sticky, set like the layer name on a Clue note. */
     .label {
       position: absolute;
-      left: -2px;
+      left: 0;
       bottom: 100%;
-      margin-bottom: 5px;
       max-width: min(420px, 90vw);
       overflow: hidden;
       padding: var(--space-1) var(--space-2);
-      border-radius: var(--radius-tick);
       background: var(--accent);
       color: var(--accent-ink);
-      font: 500 var(--text-xs)/1.3 var(--mono);
+      font: var(--weight-regular) var(--text-sm)/var(--leading) var(--font);
+      font-feature-settings: var(--font-features);
+      letter-spacing: var(--tracking-caps);
       text-overflow: ellipsis;
+      text-transform: uppercase;
       white-space: nowrap;
     }
     .mark.label-inside .label {
-      top: 4px;
+      top: 0;
       bottom: auto;
-      left: 4px;
+      left: 0;
       margin: 0;
     }
     .bar {
@@ -119,14 +138,16 @@
       gap: var(--space-3);
       max-width: calc(100vw - 2 * var(--space-4));
       padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-bar);
+      border: var(--line) solid var(--surface-line);
       background: var(--surface);
       box-shadow: var(--shadow);
       color: var(--surface-muted);
-      font: var(--text-sm)/1.4 var(--mono);
+      font: var(--weight-regular) var(--text-md)/var(--leading) var(--font);
+      font-feature-settings: var(--font-features);
       pointer-events: none;
       transform: translateX(-50%);
       white-space: nowrap;
+      -webkit-font-smoothing: antialiased;
       animation: enter .2s var(--ease);
     }
     .bar.top {
@@ -134,22 +155,36 @@
       bottom: auto;
     }
     .bar[hidden] { display: none; }
-    .bar b {
-      color: var(--surface-ink);
-      font-weight: 500;
+    /* A status turns the bar into a plain sticky, text only. */
+    .bar.sticky {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--accent-ink);
     }
+    .logo {
+      display: block;
+      flex: none;
+      width: var(--logo-size);
+      height: var(--logo-size);
+    }
+    .brand { font-weight: var(--weight-medium); }
+    /* As tall as the logo, so the sticky keeps the height of the bar. */
+    .bar b { font-weight: var(--weight-medium); line-height: var(--logo-size); }
+    .brand { color: var(--surface-ink); }
     .hint {
       display: flex;
       gap: var(--space-3);
       overflow: hidden;
+      padding-left: var(--space-3);
+      border-left: var(--line) solid var(--surface-line);
     }
     kbd {
       margin-right: var(--space-1);
-      padding: 1px 5px;
-      border-radius: var(--radius-tick);
-      background: var(--cap);
+      padding: 0 var(--space-1);
+      background: var(--key);
       color: var(--surface-ink);
       font: inherit;
+      font-weight: var(--weight-medium);
     }
     @keyframes enter {
       from { opacity: 0; transform: translate(-50%, 6px); }
@@ -160,16 +195,16 @@
     }
   `;
 
-  /** Black text on light colours, white on dark, so any custom colour stays readable. */
+  /** Ink text on light colours, white on dark, so any custom colour stays readable. */
   function inkOn(color) {
     let hex = color.slice(1, 7);
     if (hex.length < 6) hex = [...hex.slice(0, 3)].map((c) => c + c).join("");
     const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? "#0a0a0a" : "#ffffff";
+    return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? "var(--color-ink-950)" : "var(--color-white)";
   }
 
   // A shadow root keeps the page's CSS out of the tool and the tool's out of the page.
-  const host = document.createElement("annotation-tool-ui");
+  const host = document.createElement("clue-ui");
   const shadow = host.attachShadow({ mode: "open" });
   shadow.innerHTML = `
     <style>${STYLES}</style>
@@ -285,7 +320,7 @@
     let owner = written.vnode?.ctx ?? null;
     while (owner) {
       const file = owner.type.__file;
-      if (file && !isLibrary(file)) return { file, line: written.annotationLine };
+      if (file && !isLibrary(file)) return { file, line: written.clueLine };
       written = owner;
       owner = owner.vnode?.ctx ?? null;
     }
@@ -525,7 +560,7 @@
   function elementSource(node) {
     const owner = node.__vnode?.ctx;
     if (owner?.type.__file) {
-      const line = node.getAttribute("data-annotation-line");
+      const line = node.getAttribute("data-clue-line");
       return { file: owner.type.__file, line: line ? Number(line) : undefined };
     }
     const fiber = fiberOf(node);
@@ -765,7 +800,7 @@
     const number = nextPickNumber();
     const copied = await copyText(selectionText(level, number));
     if (copied) {
-      showStatus(`Copied [${number}] ${level.name}`);
+      showStatus(`Copied ${level.name}`);
       setActive(false);
     } else {
       pickCount -= 1; // the number was not used
@@ -790,13 +825,14 @@
 
   function renderBar() {
     bar.hidden = !active && !status;
+    bar.classList.toggle("sticky", Boolean(status));
     if (bar.hidden) return;
     if (status) {
       bar.innerHTML = "<b></b>";
-      bar.firstChild.textContent = status;
+      bar.querySelector("b").textContent = status;
       return;
     }
-    bar.innerHTML = `<span class="hint">
+    bar.innerHTML = `${LOGO}<span class="brand">Clue</span><span class="hint">
       <span><kbd>W</kbd>parent</span>
       <span><kbd>S</kbd>child</span>
       <span><kbd>Click</kbd>copy [${pickCount + 1}]</span>
