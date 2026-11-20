@@ -567,6 +567,82 @@
     return fiber ? fiberSource(fiber) : undefined;
   }
 
+  // ---------- Instance ----------
+  // The source line says where an element is written; on a page built from data
+  // every item in a list shares that line. These say which item it is.
+
+  const MAX_MEDIA = 3;
+  const MAX_DATA = 3;
+  const MAX_FIBER_HOPS = 8;
+  // Props that usually name a piece of data rather than style it.
+  const DATA_PROPS = ["id", "slug", "name", "src", "href", "title", "type", "variant"];
+
+  /** A media URL as short as it can be: the path on this site, host and path elsewhere. */
+  function shortUrl(value) {
+    if (!value || /^(data|blob):/.test(value)) return undefined;
+    try {
+      const url = new URL(value, location.href);
+      return url.origin === location.origin ? url.pathname : url.host + url.pathname;
+    } catch {
+      return undefined;
+    }
+  }
+
+  function backgroundUrl(element) {
+    const match = getComputedStyle(element).backgroundImage.match(/url\(["']?(.*?)["']?\)/);
+    return match ? match[1] : undefined;
+  }
+
+  /** The files an element shows: itself, or the few images and videos inside it. */
+  function mediaOf(element) {
+    const own = element.matches("img, video, source") ? [element] : [];
+    const nodes = own.length ? own : Array.from(element.querySelectorAll("img, video"));
+    if (nodes.length > MAX_MEDIA) return [];
+    const urls = nodes.map((node) => node.currentSrc || node.getAttribute("src") || node.getAttribute("poster"));
+    if (!urls.length) urls.push(backgroundUrl(element));
+    return [...new Set(urls.map(shortUrl).filter(Boolean))];
+  }
+
+  function isDataValue(value) {
+    return (typeof value === "string" && value.length <= MAX_LABEL) || typeof value === "number";
+  }
+
+  /** A list index says nothing a source line does not; an id or a slug does. */
+  function isUsefulKey(key) {
+    return key != null && !/^\d+$/.test(String(key));
+  }
+
+  function pickProps(props) {
+    if (!props) return [];
+    return DATA_PROPS.filter((name) => isDataValue(props[name])).map((name) => `${name}=${props[name]}`);
+  }
+
+  /**
+   * The key and data props that tell this element from its siblings, from the
+   * nearest React fiber or Vue vnode that has them.
+   */
+  function dataOf(element) {
+    const vnode = element.__vnode;
+    if (vnode) {
+      // A v-for key sits on the element, or on the component the element is the root of.
+      const component = element.__vueParentComponent;
+      const key = isUsefulKey(vnode.key) ? vnode.key : component?.subTree?.el === element ? component.vnode.key : undefined;
+      const found = isUsefulKey(key) ? [`key=${key}`] : [];
+      return [...new Set([...found, ...pickProps(component?.props)])].slice(0, MAX_DATA);
+    }
+    let fiber = fiberOf(element);
+    const found = [];
+    for (let hops = 0; fiber && hops < MAX_FIBER_HOPS; hops++, fiber = fiber.return) {
+      if (isUsefulKey(fiber.key)) {
+        found.push(`key=${fiber.key}`);
+        // Component props, not DOM attributes: those are the media line's job.
+        if (typeof fiber.type !== "string") found.push(...pickProps(fiber.memoizedProps));
+        break;
+      }
+    }
+    return [...new Set(found)].slice(0, MAX_DATA);
+  }
+
   function elementLevel(node) {
     return { name: elementName(node), el: node, source: elementSource(node) };
   }
@@ -743,6 +819,11 @@
       parts.push(`Element: ${level.name}${source ? ` at ${at(source, page)}` : ""}`);
       if (!source) parts.push(`Selector: ${selectorOf(element)}`);
     }
+    // Which instance: the files it shows and the data it was rendered from.
+    const media = mediaOf(element);
+    if (media.length) parts.push(`Media: ${media.join(", ")}`);
+    const data = dataOf(element).filter((item) => !media.some((url) => item.endsWith(`=${url}`)));
+    if (data.length) parts.push(`Data: ${data.join(", ")}`);
     // Only a short label tells instances apart; a container's text is noise.
     if (name && name.length <= MAX_LABEL) parts.push(`Text: "${name}"`);
     const style = styleOf(element);

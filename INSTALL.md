@@ -67,5 +67,7 @@ A pick pasted into chat looks like this:
 - `(./Card.vue)` is the component's own file. `placed at` is where it is used and given its props. Change the first to change every card, the second to change this one.
 - Paths starting with `./` are relative to the page's folder.
 - `Element:` means a plain element, not a component. `Selector:` appears when no line is known.
+- `Media:` is the file an image or video shows, as its path on the site.
+- `Data:` is the list key and data props (id, slug, name...) the element was rendered from. With `Media:` it tells apart items that share one source line, such as a list built from JSON.
 - `Text:` tells apart instances of the same component.
 - `Style:` is size/line height, weight and font of the text.
