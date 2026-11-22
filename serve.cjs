@@ -3,7 +3,9 @@
 // into every page (F freezes the motion to pick on a moment) and reloads the open page as soon as
 // any file in it (or Clue) changes, so nobody has to press reload.
 //
-//   node serve.cjs <folder of scenes> [--port 5195]      (from a clone of this repo)
+//   node serve.cjs <folder of scenes> [--port 5195] [--lan]      (from a clone of this repo)
+//
+// --lan also opens it to the local network (a phone on the same Wi-Fi), by this machine's address.
 //
 // - Only that folder is served, on 127.0.0.1. Clue is added to every HTML page (/__clue/clue.js),
 //   so the scenes need no script tags of their own.
@@ -17,6 +19,10 @@ const path = require('node:path')
 const args = process.argv.slice(2)
 const folder = path.resolve(args.find(arg => !arg.startsWith('--')) || '.')
 const port = Number(args[args.indexOf('--port') + 1]) || 5195
+const lan = args.includes('--lan')
+// This machine's addresses on the local network (IPv4, not loopback), for --lan.
+const lanAddresses = lan ? Object.values(require('node:os').networkInterfaces()).flat()
+  .filter(item => item && item.family === 'IPv4' && !item.internal).map(item => item.address) : []
 const clue = path.join(__dirname, 'clue.js')
 const TOOLS = { '/__clue/clue.js': clue }
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.cjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
@@ -42,7 +48,7 @@ fs.watch(folder, { recursive: true }, changed)
 fs.watch(clue, changed)
 
 const root = fs.realpathSync(folder)
-const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`])
+const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, ...lanAddresses.map(address => `${address}:${port}`)])
 // Inside the folder, and no hidden part (.git, .env) on the real path.
 const inside = file => (file === root || file.startsWith(root + path.sep))
   && !path.relative(root, file).split(path.sep).some(part => part.startsWith('.'))
@@ -93,4 +99,7 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': text ? `${type}; charset=utf-8` : type, 'Cache-Control': 'no-store' })
     res.end(type === 'text/html' ? data.toString().replace(/<\/body>|$/i, match => INJECT + CLIENT + match) : data)
   })
-}).listen(port, '127.0.0.1', () => console.log(`Clue preview: http://127.0.0.1:${port}/  (serving ${root})`))
+}).listen(port, lan ? '0.0.0.0' : '127.0.0.1', () => {
+  console.log(`Clue preview: http://127.0.0.1:${port}/  (serving ${root})`)
+  for (const address of lanAddresses) console.log(`On the network: http://${address}:${port}/`)
+})
