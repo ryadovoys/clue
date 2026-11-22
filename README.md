@@ -81,6 +81,8 @@ its moment and its component. **Comments** in the menu brings any note back on i
     Make price black color
 ```
 
+Esc closes comment mode and clears every note, so copy first.
+
 It pauses anything that draws itself from `window.draw(t)` and any CSS or Web Animation.
 
 To look at animation scenes, serve their folder:
