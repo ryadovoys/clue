@@ -15,7 +15,8 @@
   otherwise every CSS or Web Animation on the page is paused through document.getAnimations().
   Inert with ?still in the URL, so renderers that screenshot the page never see it.
   A preview page and the scenes in its iframes all load this script: the page shows the menu and
-  the window outline, each scene takes the clicks and keeps its own notes. Notes survive a reload.
+  the window outline, each scene takes the clicks and keeps its own notes. Notes survive a reload;
+  closing comment mode (Esc, the Esc button, Option+Shift+A) deletes them all, so copy first.
 */
 (() => {
   if (window.clueAnima || new URLSearchParams(location.search).has('still')) return
@@ -377,6 +378,9 @@
       else { choosing = false; chosen = null; hovered = null }
     } else if (on) armed = animates()
     if (!on) disarm()
+    // Closing comment mode is the end of a review round: every note goes, here and in every scene.
+    // Copy them first; a reload while the mode is open keeps them.
+    if (!on) clearAll()
     render()
   }
   function handleKey(key) {
