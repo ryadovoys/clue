@@ -11,7 +11,9 @@
 //   so the scenes need no script tags of their own.
 // - Every HTML page gets a small client that listens on /__clue-reload (server-sent events).
 //   Only the top page reloads (its iframes come with it), and it waits while the page is frozen,
-//   so a moment being picked on is never lost.
+//   so a moment being picked on is never lost. Each page knows the version it was served at and
+//   checks it on every (re)connect: a phone drops the stream when its screen sleeps, and comes
+//   back to a stale page otherwise.
 const http = require('node:http')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -29,20 +31,31 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.cjs': 'text/ja
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.woff2': 'font/woff2' }
 
 const INJECT = '<script src="/__clue/clue.js"></script>'
-const CLIENT = `<script>(() => {
+// The version goes up on every change. The stream sends it on connect and on each change.
+let version = 1
+const CLIENT = () => `<script>(() => {
   if (window.top !== window) return
+  const loaded = ${version}
   // A frozen page holds the reload until it plays again.
   const busy = () => { try { return Boolean(window.__clue?.frozen?.()) } catch { return false } }
-  let pending = false
+  let pending = false, stream = null
   const reload = () => busy() ? setTimeout(reload, 300) : location.reload()
-  new EventSource('/__clue-reload').onmessage = () => { if (!pending) { pending = true; reload() } }
+  const connect = () => {
+    stream?.close()
+    stream = new EventSource('/__clue-reload')
+    stream.onmessage = event => { if (Number(event.data) !== loaded && !pending) { pending = true; reload() } }
+  }
+  connect()
+  // Back from a sleeping screen, another tab or the back-forward cache: the old stream may be dead.
+  addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') connect() })
+  addEventListener('pageshow', event => { if (event.persisted) connect() })
 })()</script>`
 
 const clients = new Set()
 let timer
 const changed = () => {
   clearTimeout(timer)   // editors write in bursts; one reload per burst
-  timer = setTimeout(() => { for (const res of clients) res.write('data: reload\n\n') }, 120)
+  timer = setTimeout(() => { version++; for (const res of clients) res.write(`data: ${version}\n\n`) }, 120)
 }
 fs.watch(folder, { recursive: true }, changed)
 fs.watch(clue, changed)
@@ -68,7 +81,7 @@ http.createServer((req, res) => {
   if (url.includes('\0') || url.includes('\\') || url.split('/').some(part => part.startsWith('.') && part !== '.' && part !== '..')) return fail(res, 404)
   if (url === '/__clue-reload') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
-    res.write(': connected\n\n')
+    res.write(`data: ${version}\n\n`)
     clients.add(res)
     req.on('close', () => clients.delete(res))
     return
@@ -85,7 +98,7 @@ http.createServer((req, res) => {
           // A folder with no index: list its pages.
           const pages = fs.readdirSync(file).filter(name => name.endsWith('.html'))
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
-          return res.end(`<!doctype html><meta charset="utf-8"><body style="font:15px/1.8 -apple-system,sans-serif;padding:32px">${pages.map(name => `<a href="${encodeURI(name)}">${name.replace(/</g, '&lt;')}</a>`).join('<br>')}${CLIENT}`)
+          return res.end(`<!doctype html><meta charset="utf-8"><body style="font:15px/1.8 -apple-system,sans-serif;padding:32px">${pages.map(name => `<a href="${encodeURI(name)}">${name.replace(/</g, '&lt;')}</a>`).join('<br>')}${CLIENT()}`)
         }
         file = fs.realpathSync(index)
         if (!inside(file)) return fail(res, 403)
@@ -97,7 +110,7 @@ http.createServer((req, res) => {
     const type = TYPES[path.extname(file)] || 'application/octet-stream'
     const text = /^(text|application\/json)/.test(type)
     res.writeHead(200, { 'Content-Type': text ? `${type}; charset=utf-8` : type, 'Cache-Control': 'no-store' })
-    res.end(type === 'text/html' ? data.toString().replace(/<\/body>|$/i, match => INJECT + CLIENT + match) : data)
+    res.end(type === 'text/html' ? data.toString().replace(/<\/body>|$/i, match => INJECT + CLIENT() + match) : data)
   })
 }).listen(port, lan ? '0.0.0.0' : '127.0.0.1', () => {
   console.log(`Clue preview: http://127.0.0.1:${port}/  (serving ${root})`)
