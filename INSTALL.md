@@ -56,7 +56,25 @@ do not open the browser for them:
 node serve.cjs <folder of scenes>    # http://127.0.0.1:5195, live reload, Clue on every page
 ```
 
-## 3. Check it
+## 3. Leave a note for later sessions
+
+You read this file once; the agents in later sessions will not. So they can read what the user
+pastes, add this to the project's agent rules: `AGENTS.md`, or `CLAUDE.md` if that is what the
+project uses (create `AGENTS.md` if there is neither). Keep it as is:
+
+```markdown
+## Clue
+
+This project has Clue (dev only): the user points at an element and pastes a reference such as
+`[1] Pick on src/Pricing.vue · Component: Card (./Card.vue), placed at ./Pricing.vue:4 · Text: "Starter"`.
+`[1]` is the number the message refers to. `(./Card.vue)` is the component's own file (change it to
+change every instance); `placed at` is the line that uses this one (change it to change only this
+one). `./` paths are relative to the page's folder. `Frozen at 1.57s of 11.80s` means the page was
+frozen on that moment of its animation: map it to the animation's timeline to find the phase.
+Format: https://github.com/ryadovoys/clue/blob/main/INSTALL.md#reading-a-pick
+```
+
+## 4. Check it
 
 Run the project, press Option+Shift+C, and tell the user it is ready. If they use a browser pane without keyboard focus, they need to click the page first.
 
