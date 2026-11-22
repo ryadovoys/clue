@@ -1,7 +1,8 @@
 /*
  * Clue. Option+Shift+C, point at anything, W S to move up and down the
  * layers, click to copy a short numbered reference to it. Paste it into a
- * chat with an agent, as many times as you need in one message.
+ * chat with an agent, as many times as you need in one message. F freezes
+ * every animation on the page, so a pick can name a moment of the motion.
  *
  * One file, no dependencies. Reads Vue and React dev internals when they are
  * there and falls back to the plain DOM when they are not.
@@ -233,6 +234,140 @@
 
   const selected = () => levels[levelIndex];
 
+  // ---------- Freeze ----------
+  // F stops every animation on the page and in its same-site frames at one moment; F again plays
+  // on. CSS and Web Animations and videos are paused. Loops on requestAnimationFrame (a scene's
+  // draw(t), physics) are held: their next frame waits, and the clock they read stands still, so
+  // they carry on from the same moment. While frozen, every pick says which moment it is.
+
+  // A scene that draws itself from window.draw(t) knows its own time; keep the last t it got.
+  let sceneTime = null;
+  try {
+    let draw = typeof window.draw === "function" ? window.draw : undefined;
+    const traced = (t, ...rest) => {
+      if (typeof t === "number") sceneTime = t;
+      return draw(t, ...rest);
+    };
+    Object.defineProperty(window, "draw", {
+      configurable: true,
+      get: () => draw && traced,
+      set: (fn) => {
+        draw = fn;
+      },
+    });
+  } catch {
+    // A page that fixed draw before Clue loaded keeps it; times then come from the elements.
+  }
+
+  let frozen = false;
+  const stopped = new Map(); // window -> the animations and media this freeze paused there
+  const clocks = new WeakMap();
+
+  /** The frame clock of a window, swapped for one that can stand still. Installed once. */
+  function clockOf(win) {
+    let clock = clocks.get(win);
+    if (clock) return clock;
+    const nativeNow = win.performance.now.bind(win.performance);
+    const nativeFrame = win.requestAnimationFrame.bind(win);
+    const nativeCancel = win.cancelAnimationFrame.bind(win);
+    clock = { frozen: false, since: 0, offset: 0, held: new Map(), nativeNow, nativeFrame };
+    win.performance.now = () => (clock.frozen ? clock.since : nativeNow()) - clock.offset;
+    win.requestAnimationFrame = (callback) => {
+      const id = nativeFrame((stamp) => {
+        if (clock.frozen) clock.held.set(id, callback);
+        else callback(stamp - clock.offset);
+      });
+      return id;
+    };
+    win.cancelAnimationFrame = (id) => {
+      clock.held.delete(id);
+      nativeCancel(id);
+    };
+    clocks.set(win, clock);
+    return clock;
+  }
+
+  /** This window and every same-site frame inside it, at any depth. */
+  function eachWindow(win, visit) {
+    visit(win);
+    for (const frame of win.document.querySelectorAll("iframe")) {
+      let inner = null;
+      try {
+        inner = frame.contentWindow;
+        if (inner) void inner.document; // throws for another origin
+      } catch {
+        inner = null;
+      }
+      if (inner) eachWindow(inner, visit);
+    }
+  }
+
+  const isClueUi = (animation) =>
+    animation.effect?.target?.getRootNode?.()?.host?.localName === "clue-ui";
+
+  function setFrozen(value) {
+    if (value === frozen) return;
+    frozen = value;
+    eachWindow(window, (win) => {
+      const clock = clockOf(win);
+      if (value) {
+        clock.since = clock.nativeNow();
+        clock.frozen = true;
+        const animations = win.document
+          .getAnimations()
+          .filter((animation) => animation.playState === "running" && !isClueUi(animation));
+        const media = [...win.document.querySelectorAll("video, audio")].filter((item) => !item.paused);
+        animations.forEach((animation) => animation.pause());
+        media.forEach((item) => item.pause());
+        stopped.set(win, { animations, media });
+      } else if (clock.frozen) {
+        clock.offset += clock.nativeNow() - clock.since;
+        clock.frozen = false;
+        const waiting = [...clock.held.values()];
+        clock.held.clear();
+        waiting.forEach((callback) => clock.nativeFrame((stamp) => callback(stamp - clock.offset)));
+        const { animations = [], media = [] } = stopped.get(win) ?? {};
+        animations.forEach((animation) => animation.play());
+        media.forEach((item) => item.play().catch(() => {}));
+      }
+      try {
+        win.__clue?.sync?.();
+      } catch {
+        // A frame without Clue has no bar to update.
+      }
+    });
+    if (!value) stopped.clear();
+  }
+
+  // The page at the top runs the freeze, so every frame stops and plays together.
+  const rootClue = () => parentClue?.root?.() ?? api;
+  const isFrozen = () => rootClue().frozen();
+  const toggleFreeze = () => rootClue().freeze(!isFrozen());
+
+  const seconds = (ms) => `${(ms / 1000).toFixed(2)}s`;
+
+  /** The moment a pick was made on: the scene's own time, or the element's animation, or the page clock. */
+  function momentOf(element) {
+    if (sceneTime !== null) {
+      const loop = Number(window.DURATION);
+      return `Frozen at ${sceneTime.toFixed(2)}s${loop > 0 ? ` of ${loop.toFixed(2)}s` : ""}`;
+    }
+    for (let node = element; node && node !== document.documentElement; node = node.parentElement) {
+      if (node.matches("video, audio") && Number.isFinite(node.duration)) {
+        return `Frozen at ${node.currentTime.toFixed(2)}s of ${node.duration.toFixed(2)}s (${node.localName})`;
+      }
+      const animation = node.getAnimations().find((item) => item.currentTime !== null && !isClueUi(item));
+      if (animation) {
+        const { duration, progress } = animation.effect.getComputedTiming();
+        const name = animation.animationName || animation.transitionProperty || animation.id;
+        const length = Number.isFinite(duration) && duration > 0 ? duration : 0;
+        const at = length ? (progress ?? 0) * length : animation.currentTime;
+        return `Frozen at ${seconds(at)}${length ? ` of ${seconds(length)}` : ""}${name ? ` (${name})` : ""}`;
+      }
+    }
+    return `Frozen at ${seconds(performance.now())} after load`;
+  }
+
   function isEditable(target) {
     return (
       target instanceof HTMLElement &&
@@ -266,12 +401,24 @@
       return;
     }
 
-    if (!active) return;
     const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
+    if (!active) {
+      // Clue closed on a frozen page (after a copy): F or Esc plays on.
+      if (plain && (code === "KeyF" || event.key === "Escape") && !isEditable(event.target) && isFrozen()) {
+        event.preventDefault();
+        rootClue().freeze(false);
+      }
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
       setActive(false);
+      if (isFrozen()) rootClue().freeze(false);
+    } else if (code === "KeyF" && plain) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleFreeze();
     } else if (code === "KeyR" && plain) {
       event.preventDefault();
       event.stopPropagation();
@@ -837,6 +984,7 @@
     const where = page ?? (location.pathname + location.hash);
 
     const parts = [`[${number}] Pick on ${where}`];
+    if (isFrozen()) parts.push(momentOf(element));
     if (level.component) {
       const own = level.file ? ` (${relativeTo(page, shortPath(level.file))})` : "";
       const placed = level.placed ? `, placed at ${at(level.placed, page)}` : "";
@@ -910,7 +1058,8 @@
     const number = nextPickNumber();
     const copied = await copyText(selectionText(level, number));
     if (copied) {
-      showStatus(`Copied ${level.name}`);
+      // A frozen page stays frozen, so the next pick lands on the same moment.
+      showStatus(isFrozen() ? `Copied ${level.name} · F plays` : `Copied ${level.name}`);
       setActive(false);
     } else {
       pickCount -= 1; // the number was not used
@@ -942,9 +1091,11 @@
       bar.querySelector("b").textContent = status;
       return;
     }
-    bar.innerHTML = `${LOGO}<span class="brand">Clue</span><span class="hint">
+    const still = isFrozen();
+    bar.innerHTML = `${LOGO}<span class="brand">${still ? "Clue · Frozen" : "Clue"}</span><span class="hint">
       <span><kbd>W</kbd>parent</span>
       <span><kbd>S</kbd>child</span>
+      <span><kbd>F</kbd>${still ? "play" : "freeze"}</span>
       <span><kbd>Click</kbd>copy [${pickCount + 1}]</span>
       <span><kbd>R</kbd>restart</span>
       <span><kbd>Esc</kbd>exit</span>
@@ -968,10 +1119,16 @@
     setActive(false);
     parentClue.activate();
   });
-  // Same-origin pages reach this to hand over pointing and share the pick count. Nothing else.
-  Object.defineProperty(window, "__clue", {
-    value: Object.freeze({ activate: () => { window.focus(); setActive(true); }, next: nextPickNumber }),
+  // Same-origin pages reach this to hand over pointing, share the pick count and freeze together.
+  const api = Object.freeze({
+    activate: () => { window.focus(); setActive(true); },
+    next: nextPickNumber,
+    root: () => rootClue(),
+    freeze: (value) => setFrozen(Boolean(value)),
+    frozen: () => frozen,
+    sync: () => renderBar(),
   });
+  Object.defineProperty(window, "__clue", { value: api });
   catcher.addEventListener("click", onPick, true);
   window.addEventListener("keydown", onKey, true);
   window.addEventListener("scroll", () => active && renderMark(), true);

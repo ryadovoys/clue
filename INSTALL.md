@@ -48,15 +48,13 @@ If the page will be published, tell the user to remove this line first.
 {process.env.NODE_ENV === "development" && <script src="/clue.js" />}
 ```
 
-**Animation scenes or a motion prototype.** If the user works on animation, add Clue Anima as well.
-In Vite: `clue({ color: "lemon", anima: true })`. For a folder of HTML scenes, run the preview
-server from a clone of this repo and give the user the link; do not open the browser for them:
+**Animation scenes or a motion prototype.** Nothing extra: F in Clue freezes the motion. For a
+folder of HTML scenes, run the preview server from a clone of this repo and give the user the link;
+do not open the browser for them:
 
 ```bash
-node serve.cjs <folder of scenes>    # http://127.0.0.1:5195, live reload, both Clues on every page
+node serve.cjs <folder of scenes>    # http://127.0.0.1:5195, live reload, Clue on every page
 ```
-
-On a plain page, add `anima.js` the same way as `clue.js`, in the `<head>`.
 
 ## 3. Check it
 
@@ -81,21 +79,6 @@ A pick pasted into chat looks like this:
 - `Data:` is the list key and data props (id, slug, name...) the element was rendered from. With `Media:` it tells apart items that share one source line, such as a list built from JSON.
 - `Text:` tells apart instances of the same component.
 - `Style:` is size/line height, weight and font of the text.
-
-## Reading Anima notes
-
-Clue Anima notes arrive as one block:
-
-```
-Animation comments (Clue Anima). Times are seconds into the loop; points are stage pixels.
-
-scenes/intro.html (loop 7.40s)
-[1] at 0.91s · on article#studio > p.price · text "$12 / month" · point 1116, 327
-    Make price black color
-```
-
-- The first line of each group is the page and the length of its loop.
-- `at` is seconds into the loop. Map it to the scene's own timeline to find the phase.
-- `on` is the element the note is about, nearest id first. `point` is where the user clicked, in the
-  scene's own pixels.
-- Numbers run across all pages in one paste. Fix each one, then answer per number in one line.
+- `Frozen at` appears when the user froze the page with F. It is the moment of the pick: seconds
+  into the scene's `draw(t)` loop (`of` is its length), into the element's CSS animation (its name
+  in brackets), into a video, or since the page loaded. Map it to the timeline to find the phase.

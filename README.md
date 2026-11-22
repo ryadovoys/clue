@@ -58,41 +58,36 @@ plugins: [clue(), vue()]
 | Option+Shift+C | Turn it on or off |
 | W | Go up a layer, to the parent |
 | S | Go down a layer, to the child |
+| F | Freeze every animation on the page, F again to play |
 | Click | Copy the reference and close |
 | R | Start numbering from [1] again |
-| Esc | Close without copying |
+| Esc | Close without copying, and play if frozen |
 
 W and S work by key position, so they also work on a Russian keyboard. The number also starts over after 10 minutes of quiet.
 
-## Animations: Clue Anima
+## Animations: freeze
 
-<img src="assets/clue-anima-logo.svg" width="40" alt="The Clue Anima mark: the Clue arrow turned to point up, on a pink sticky">
-
-Clue picks one thing on a still page. For motion there is a second mode, Clue Anima, in pink like a
-highlighter so you never mix them up.
-
-Press Option+Shift+A and pick the window. Click to stop the animation on a frame, point at the part
-(W and S work here too), click and write what should change. Save, and it plays on. Every note keeps
-its moment and its component. **Comments** in the menu brings any note back on its frame, and
-**Copy** gives the agent all of them at once:
+Press F while Clue is on and everything on the page stops on one frame: CSS and Web Animations,
+videos, and loops on `requestAnimationFrame`, such as a scene that draws itself from
+`window.draw(t)` or a physics engine. Frames from the same site inside the page stop with it, so
+you never have to pick a window. Point and click as usual. While the page is frozen, every pick
+also says which moment it is:
 
 ```
-[1] at 0.91s · on article#studio.plan.featured > p.price · text "$12 / month" · point 1116, 327
-    Make price black color
+[1] Pick on /intro.html · Frozen at 1.57s of 11.80s · Element: p.price · Text: "$12 / month"
 ```
 
-Esc closes comment mode and clears every note, so copy first.
+The page stays frozen after a copy, so the next pick lands on the same moment. F again, or Esc,
+plays on from exactly where it stopped.
 
-It pauses anything that draws itself from `window.draw(t)` and any CSS or Web Animation.
-
-To look at animation scenes, serve their folder:
+To look at a folder of animation scenes, serve it:
 
 ```bash
 node serve.cjs path/to/scenes
 ```
 
-It opens on http://127.0.0.1:5195, puts both Clue and Clue Anima on every page, and reloads the page
-by itself when a file changes. In a Vite project, `clue({ anima: true })` adds Anima next to Clue.
+It opens on http://127.0.0.1:5195, puts Clue on every page and reloads by itself when a file
+changes. It waits while the page is frozen, so a reload never takes the frame away.
 
 ## Colours
 

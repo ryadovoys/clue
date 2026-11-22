@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// Clue preview server for animations: serves one folder of animation scenes on localhost, puts both Clues
-// into every page (Clue for still picks, Anima for notes on motion) and reloads the open page as
-// soon as any file in it (or either tool) changes, so nobody has to press reload.
+// Clue preview server for animations: serves one folder of animation scenes on localhost, puts Clue
+// into every page (F freezes the motion to pick on a moment) and reloads the open page as soon as
+// any file in it (or Clue) changes, so nobody has to press reload.
 //
 //   node serve.cjs <folder of scenes> [--port 5195]      (from a clone of this repo)
 //
-// - Only that folder is served, on 127.0.0.1. Clue and Clue Anima are added to every HTML page
-//   (/__clue/clue.js, /__clue/anima.js), so the scenes need no script tags of their own.
-// - Every HTML page gets a small client that listens on /__anima-reload (server-sent events).
-//   Only the top page reloads (its iframes come with it), and it waits while a Clue Anima note
-//   is open, so a half-written note is never lost.
+// - Only that folder is served, on 127.0.0.1. Clue is added to every HTML page (/__clue/clue.js),
+//   so the scenes need no script tags of their own.
+// - Every HTML page gets a small client that listens on /__clue-reload (server-sent events).
+//   Only the top page reloads (its iframes come with it), and it waits while the page is frozen,
+//   so a moment being picked on is never lost.
 const http = require('node:http')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -17,22 +17,19 @@ const path = require('node:path')
 const args = process.argv.slice(2)
 const folder = path.resolve(args.find(arg => !arg.startsWith('--')) || '.')
 const port = Number(args[args.indexOf('--port') + 1]) || 5195
-const anima = path.join(__dirname, 'anima.js')
 const clue = path.join(__dirname, 'clue.js')
-const TOOLS = { '/__clue/anima.js': anima, '/__clue/clue.js': clue }
+const TOOLS = { '/__clue/clue.js': clue }
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.cjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.woff2': 'font/woff2' }
 
-// Both Clues go into every page and scene: Clue for picks on a still frame, Anima for notes on motion.
-const INJECT = '<script src="/__clue/anima.js"></script><script src="/__clue/clue.js"></script>'
+const INJECT = '<script src="/__clue/clue.js"></script>'
 const CLIENT = `<script>(() => {
   if (window.top !== window) return
-  // A note being written in this page or one of its scenes holds the reload until it is closed.
-  const busy = () => [window, ...[...document.querySelectorAll('iframe')].map(f => { try { return f.contentWindow } catch { return null } })]
-    .some(w => { try { return w?.clueAnima?.editing?.() } catch { return false } })
+  // A frozen page holds the reload until it plays again.
+  const busy = () => { try { return Boolean(window.__clue?.frozen?.()) } catch { return false } }
   let pending = false
   const reload = () => busy() ? setTimeout(reload, 300) : location.reload()
-  new EventSource('/__anima-reload').onmessage = () => { if (!pending) { pending = true; reload() } }
+  new EventSource('/__clue-reload').onmessage = () => { if (!pending) { pending = true; reload() } }
 })()</script>`
 
 const clients = new Set()
@@ -42,8 +39,7 @@ const changed = () => {
   timer = setTimeout(() => { for (const res of clients) res.write('data: reload\n\n') }, 120)
 }
 fs.watch(folder, { recursive: true }, changed)
-fs.watch(anima, changed)
-if (fs.existsSync(clue)) fs.watch(clue, changed)
+fs.watch(clue, changed)
 
 const root = fs.realpathSync(folder)
 const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`])
@@ -64,7 +60,7 @@ http.createServer((req, res) => {
   let url
   try { url = decodeURIComponent(new URL(req.url, 'http://localhost').pathname) } catch { return fail(res, 400) }
   if (url.includes('\0') || url.includes('\\') || url.split('/').some(part => part.startsWith('.') && part !== '.' && part !== '..')) return fail(res, 404)
-  if (url === '/__anima-reload') {
+  if (url === '/__clue-reload') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
     res.write(': connected\n\n')
     clients.add(res)
@@ -97,4 +93,4 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': text ? `${type}; charset=utf-8` : type, 'Cache-Control': 'no-store' })
     res.end(type === 'text/html' ? data.toString().replace(/<\/body>|$/i, match => INJECT + CLIENT + match) : data)
   })
-}).listen(port, '127.0.0.1', () => console.log(`Clue Anima preview: http://127.0.0.1:${port}/  (serving ${root})`))
+}).listen(port, '127.0.0.1', () => console.log(`Clue preview: http://127.0.0.1:${port}/  (serving ${root})`))
