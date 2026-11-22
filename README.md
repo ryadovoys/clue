@@ -105,7 +105,13 @@ Add `--lan` to open it on a phone or another computer on the same Wi-Fi.
 
 ## Colours
 
-Clue yellow by default, the colour of a sticky note, because it stands out on almost any page. There are also `pink`, `mint` and `sky`, or use any hex:
+Clue yellow by default, the colour of a sticky note, because it stands out on almost any page.
+
+<p align="center">
+  <img src="assets/case-colors.webp" width="720" alt="Four Clue selections side by side, each with its name on a tag: Lemon, Pink, Mint and Sky">
+</p>
+
+There are also `pink`, `mint` and `sky`, or use any hex:
 
 ```html
 <script data-color="mint" src="..."></script>
