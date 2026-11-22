@@ -66,6 +66,8 @@ W and S work by key position, so they also work on a Russian keyboard. The numbe
 
 ## Animations: Clue Anima
 
+<img src="assets/clue-anima-logo.svg" width="40" alt="The Clue Anima mark: the Clue arrow turned to point up, on a pink sticky">
+
 Clue picks one thing on a still page. For motion there is a second mode, Clue Anima, in pink like a
 highlighter so you never mix them up.
 

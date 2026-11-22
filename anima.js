@@ -240,7 +240,7 @@
     .menu { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); pointer-events: auto; }
     .bar { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--line); background: var(--ink); color: var(--muted); white-space: nowrap; }
     .bar b { color: var(--white); font-weight: 510; }
-    .bar .mark { width: 14px; height: 14px; background: var(--pink); }
+    .bar .logo { display: block; width: 16px; height: 16px; }
     .bar kbd { padding: 0 4px; background: var(--line); color: var(--white); font: inherit; font-weight: 510; }
     .bar.sticky { border-color: var(--pink); background: var(--pink); color: var(--ink); }
     .bar.sticky b { color: var(--ink); }
@@ -252,6 +252,9 @@
   </style>
   <div class="ui"><div class="catcher" hidden></div><div class="outline" hidden></div><div class="target" hidden><span></span></div><div class="dot" hidden></div>
     <div class="editor" hidden></div><div class="menu" hidden><div class="bar"></div><div class="list" hidden></div></div></div>`
+  // Clue's mark on a pink sticky, turned a quarter clockwise: the arrow points up.
+  const LOGO = '<svg class="logo" viewBox="0 0 128 128" aria-hidden="true"><rect width="128" height="128" fill="var(--pink)"/>'
+    + '<path transform="rotate(90 64 64)" d="M80 22 87 37 42 66 35 52ZM43 67 87 93 79 106 36 79Z" fill="var(--ink)"/></svg>'
   const $ = selector => root.querySelector(selector)
   const esc = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
   // Rewrite only on change, so a button is not replaced between mouse down and click.
@@ -434,7 +437,7 @@
     const { list } = allNotes()
     const step = choosing ? '<span>Pick a window</span>' : '<span><kbd>Click</kbd> pause, then pick</span><span><kbd>W</kbd><kbd>S</kbd> layer</span>'
     setHtml(bar, status ? `<b>${status}</b>`
-      : `<span class="mark"></span><b>Anima</b>${step}`
+      : `${LOGO}<b>Anima</b>${step}`
         + (list.length ? `<button class="toggle-list">Comments ${list.length} \u25BE</button>` : '')
         + (sceneFrames().length > 1 && !choosing ? '<button class="change">Change window</button>' : '')
         + (list.length ? '<button class="copy primary">Copy</button><button class="clear">Clear</button>' : '')
