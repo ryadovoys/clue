@@ -1,5 +1,5 @@
 /*
- * Vite plugin. Adds Clue to the dev server, never to a build.
+ * Vite plugin. Adds Clue to the dev server, never to a build. `anima: true` adds Clue Anima too.
  * For Vue it also stamps template lines, so a pick can say `AgentCard.vue:42`:
  * plain elements get `data-clue-line`, components get the line on their
  * instance through a vnode hook, so nothing reaches their props or the DOM.
@@ -15,9 +15,10 @@ const ELEMENT_NODE = 1;
 const PLAIN_ELEMENT = 0;
 const COMPONENT = 1;
 
-export default function clue({ color } = {}) {
+export default function clue({ color, anima = false } = {}) {
   // Read on every page load, so an edit to the tool shows up on reload.
-  const source = () => readFileSync(new URL("./clue.js", import.meta.url), "utf8");
+  const read = (file) => readFileSync(new URL(file, import.meta.url), "utf8");
+  const source = () => read("./clue.js");
   let parseSfc;
 
   return {
@@ -32,6 +33,8 @@ export default function clue({ color } = {}) {
           children: source(),
           injectTo: "body",
         },
+        // Anima, for notes on animations, goes first so it can hold the scene's clock.
+        ...(anima ? [{ tag: "script", children: read("./anima.js"), injectTo: "head-prepend" }] : []),
       ];
     },
     transform(code, id) {

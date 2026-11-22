@@ -1,16 +1,19 @@
 {
   "name": "clue",
-  "version": "2.0.0",
-  "description": "Clues for AI agents: point at anything on a web page and copy a short numbered reference for your coding agent.",
+  "version": "2.1.0",
+  "description": "Clues for AI agents: point at anything on a web page, or at a moment in an animation, and copy a short numbered reference for your coding agent.",
   "license": "MIT",
   "type": "module",
   "repository": "github:ryadovoys/clue",
   "exports": {
     ".": "./clue.js",
+    "./anima": "./anima.js",
     "./vite": "./vite.js"
   },
   "files": [
     "clue.js",
+    "anima.js",
+    "serve.cjs",
     "vite.js"
   ],
   "peerDependencies": {
@@ -20,5 +23,8 @@
     "vite": {
       "optional": true
     }
+  },
+  "bin": {
+    "clue-serve": "serve.cjs"
   }
 }
