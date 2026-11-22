@@ -63,20 +63,19 @@
   const report = () => ({ page, loop: duration(), notes: comments.map(({ t, element, text, x, y, note }) => ({ t, element, text, x, y, note })) })
   const save = () => {
     try { localStorage.setItem(KEY, JSON.stringify(comments)) } catch {}
-    if (framed) window.parent.postMessage({ clueAnima: true, ...report() }, '*')
+    toParent({ clueAnima: true, ...report() })
     render()
   }
 
   // ---- Messages between the page and its scenes ----------------------------------------------
-  // Only this page's own frames and its own parent count. file:// pages all report the origin
-  // "null", so there the sender must be an unsandboxed iframe with a file src. A frame that loads
-  // again is dropped and asked to register anew. Notes arrive as checked fields, not free text.
+  // A preview page and its scenes talk only over a real origin (served, e.g. by serve.cjs), and only
+  // to their own frames and own parent on that same origin. On file:// every page reports "null",
+  // so nothing can be told apart: there each scene simply works on its own.
+  const linked = location.protocol !== 'file:' && location.origin !== 'null'
+  const sameOrigin = event => linked && event.origin === location.origin
+  const toParent = message => { if (linked && framed) window.parent.postMessage(message, location.origin) }
   function trustedChild(event) {
-    const frame = [...document.querySelectorAll('iframe')].find(item => item.contentWindow === event.source)
-    if (!frame || !frame.getAttribute('src')) return false
-    if (location.protocol !== 'file:') return location.origin !== 'null' && event.origin === location.origin
-    return event.origin === 'null' && !frame.hasAttribute('sandbox')
-      && new URL(frame.getAttribute('src'), location.href).protocol === 'file:'
+    return sameOrigin(event) && [...document.querySelectorAll('iframe')].some(item => item.contentWindow === event.source)
   }
   const str = (value, max) => typeof value === 'string' ? value.slice(0, max) : ''
   // Single-line fields stay on one line in the paste, so a value cannot fake a new note or header.
@@ -88,16 +87,22 @@
       t: num(n?.t), element: line(n?.element, 200), text: line(n?.text, 80), x: num(n?.x), y: num(n?.y), note: str(n?.note, 4000),
     })).filter(n => n.note),
   })
-  const toFrames = message => { for (const win of frames.keys()) win.postMessage(message, '*') }
+  // Notes kept in this browser go through the same checks as notes from a scene.
+  comments = (Array.isArray(comments) ? comments : []).filter(c => c && typeof c.note === 'string' && c.note).slice(0, 100).map(c => ({
+    t: num(c.t), fx: num(c.fx), fy: num(c.fy), x: num(c.x), y: num(c.y),
+    element: line(c.element, 200), text: line(c.text, 80), note: str(c.note, 4000),
+    path: Array.isArray(c.path) ? c.path.filter(Number.isInteger).slice(0, 64) : [],
+  }))
+  const toFrames = message => { for (const win of frames.keys()) win.postMessage(message, location.origin) }
   addEventListener('load', event => {
     if (event.target.tagName !== 'IFRAME') return
     frames.delete(event.target.contentWindow)
-    event.target.contentWindow?.postMessage({ clueAnimaHello: true }, '*')
+    if (linked) event.target.contentWindow?.postMessage({ clueAnimaHello: true }, location.origin)
     render()
   }, true)
   addEventListener('message', event => {
     const data = event.data || {}
-    if (framed && event.source === window.parent) {
+    if (framed && event.source === window.parent && sameOrigin(event)) {
       if (data.clueAnimaHere) parentHasAnima = true
       if ('clueAnimaMode' in data) { mode = Boolean(data.clueAnimaMode); if (!mode) disarm() }
       if ('clueAnimaArm' in data) { if (data.clueAnimaArm) armed = true; else disarm() }
@@ -110,7 +115,7 @@
     if (!trustedChild(event)) return
     if (data.clueAnimaKey === 'toggle' || data.clueAnimaKey === 'escape') return handleKey(data.clueAnimaKey)
     if (!data.clueAnima) return
-    if (!frames.has(event.source)) event.source.postMessage({ clueAnimaHere: true, clueAnimaMode: mode }, '*')
+    if (!frames.has(event.source)) event.source.postMessage({ clueAnimaHere: true, clueAnimaMode: mode }, location.origin)
     frames.set(event.source, cleanReport(data))
     render()
   })
@@ -163,7 +168,7 @@
       data.notes.forEach((note, index) => { const item = { number: list.length + 1, owner, index, page: data.page, ...note }; list.push(item); group.items.push(item) })
       groups.push(group)
     }
-    add(null, report())
+    add(null, cleanReport(report()))
     for (const frame of document.querySelectorAll('iframe')) if (frames.has(frame.contentWindow)) add(frame, frames.get(frame.contentWindow))
     return { list, groups }
   }
@@ -173,9 +178,9 @@
     if (!list.length) return
     const text = 'Animation comments (Clue Anima). Times are seconds into the loop; points are stage pixels.\n\n'
       + groups.map(group => [`${line(group.page, 200)}${group.loop ? ` (loop ${group.loop.toFixed(2)}s)` : ''}`, ...group.items.map(c => {
-        const where = [`at ${c.t.toFixed(2)}s`, `on ${line(c.element, 200)}`]
+        const where = [`at ${num(c.t).toFixed(2)}s`, `on ${line(c.element, 200)}`]
         if (c.text) where.push(`text "${line(c.text, 80).replace(/"/g, '\\"')}"`)
-        where.push(`point ${c.x}, ${c.y}`)
+        where.push(`point ${Math.round(num(c.x))}, ${Math.round(num(c.y))}`)
         // The note may span lines; each is indented, so none can pass for a note or a header.
         return `[${c.number}] ${where.join(' \u00B7 ')}\n    ${str(c.note, 4000).split(/\r\n|[\r\n\u2028\u2029]/).join('\n    ')}`
       })].join('\n')).join('\n\n')
@@ -199,7 +204,7 @@
     listOpen = false
     if (!item.owner) { if (mode) armed = true; openEditor(comments[item.index], false); return }
     choose(item.owner)
-    item.owner.contentWindow.postMessage({ clueAnimaOpen: item.index }, '*')
+    item.owner.contentWindow.postMessage({ clueAnimaOpen: item.index }, location.origin)
     render()
   }
 
@@ -348,7 +353,7 @@
     chosen = frame
     hovered = null
     toFrames({ clueAnimaArm: false })
-    frame.contentWindow.postMessage({ clueAnimaArm: true }, '*')
+    frame.contentWindow.postMessage({ clueAnimaArm: true }, location.origin)
     frame.focus()
     render()
   }
@@ -392,7 +397,7 @@
     if (!toggle && !escape) return
     if (toggle) event.preventDefault()
     // In a scene on a preview page, the page above runs the mode.
-    if (framed && parentHasAnima) return window.parent.postMessage({ clueAnimaKey: toggle ? 'toggle' : 'escape' }, '*')
+    if (framed && parentHasAnima) return toParent({ clueAnimaKey: toggle ? 'toggle' : 'escape' })
     handleKey(toggle ? 'toggle' : 'escape')
   }, true)
 

@@ -51,10 +51,16 @@ const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`])
 const inside = file => (file === root || file.startsWith(root + path.sep))
   && !path.relative(root, file).split(path.sep).some(part => part.startsWith('.'))
 const fail = (res, code) => { res.writeHead(code); res.end() }
+// On every response: only this origin may embed or read it, and types are taken as sent.
+const GUARD = { 'Cross-Origin-Resource-Policy': 'same-origin', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "frame-ancestors 'self'" }
 
 http.createServer((req, res) => {
   // Only this machine by name: a page on another site cannot reach in through DNS rebinding.
   if (!hosts.has(req.headers.host)) return fail(res, 403)
+  // Another site may link here (a navigation) but not load or read anything from this server.
+  const site = req.headers['sec-fetch-site']
+  if (site && site !== 'same-origin' && site !== 'none' && req.headers['sec-fetch-mode'] !== 'navigate') return fail(res, 403)
+  for (const [name, value] of Object.entries(GUARD)) res.setHeader(name, value)
   let url
   try { url = decodeURIComponent(new URL(req.url, 'http://localhost').pathname) } catch { return fail(res, 400) }
   if (url.includes('\0') || url.includes('\\') || url.split('/').some(part => part.startsWith('.') && part !== '.' && part !== '..')) return fail(res, 404)
