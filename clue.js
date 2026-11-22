@@ -684,8 +684,35 @@
     return [...plain, ...distinct];
   }
 
+  /** The Clue inside a same-origin iframe, or null (other origins stay closed to us). */
+  function clueIn(frame) {
+    try {
+      return frame?.contentWindow?.__clue ?? null;
+    } catch {
+      return null;
+    }
+  }
+  const parentClue = (() => {
+    try {
+      return window.parent !== window ? window.parent.__clue ?? null : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  /** Pointing moves into a frame of the same site: its own Clue takes over there. */
+  function handInto(frame) {
+    setActive(false);
+    frame.focus();
+    clueIn(frame).activate();
+  }
+
   function updateHover(x, y) {
     const stack = document.elementsFromPoint(x, y).filter((node) => node !== host);
+    if (stack[0]?.tagName === "IFRAME" && clueIn(stack[0])) {
+      handInto(stack[0]);
+      return;
+    }
     if (!stack.length) {
       clearHover();
       return;
@@ -863,6 +890,8 @@
   }
 
   function nextPickNumber() {
+    // In a frame, the page above keeps the count, so picks across frames never share a number.
+    if (parentClue) return parentClue.next();
     if (Date.now() - lastPickAt > PICK_RESET_MS) pickCount = 0;
     lastPickAt = Date.now();
     return ++pickCount;
@@ -933,6 +962,16 @@
   }
 
   catcher.addEventListener("mousemove", (event) => updateHover(event.clientX, event.clientY));
+  // Leaving a frame hands pointing back to the page around it.
+  catcher.addEventListener("mouseleave", () => {
+    if (!active || !parentClue) return;
+    setActive(false);
+    parentClue.activate();
+  });
+  // Same-origin pages reach this to hand over pointing and share the pick count. Nothing else.
+  Object.defineProperty(window, "__clue", {
+    value: Object.freeze({ activate: () => { window.focus(); setActive(true); }, next: nextPickNumber }),
+  });
   catcher.addEventListener("click", onPick, true);
   window.addEventListener("keydown", onKey, true);
   window.addEventListener("scroll", () => active && renderMark(), true);
